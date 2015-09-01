@@ -25,6 +25,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define _GPRMC_TERM   "GPRMC"
 #define _GPGGA_TERM   "GPGGA"
+#define _GPGSA_TERM   "GPGSA"
+#define _GNRMC_TERM   "GNRMC"
+#define _GNGNS_TERM   "GNGNS"
+#define _GNGSA_TERM   "GNGSA"
+#define _GPGSV_TERM   "GPGSV"
+#define _GLGSV_TERM   "GLGSV"
 
 TinyGPS::TinyGPS()
   :  _time(GPS_INVALID_TIME)
@@ -170,6 +176,11 @@ bool TinyGPS::term_complete()
     byte checksum = 16 * from_hex(_term[0]) + from_hex(_term[1]);
     if (checksum == _parity)
     {
+      if(_sentence_type == _GPS_SENTENCE_GPRMC)   //set the time and date even if not tracking
+      {
+          _time      = _new_time;
+          _date      = _new_date;
+      }
       if (_gps_data_good)
       {
 #ifndef _GPS_NO_STATS
@@ -212,10 +223,18 @@ bool TinyGPS::term_complete()
   // the first term determines the sentence type
   if (_term_number == 0)
   {
-    if (!gpsstrcmp(_term, _GPRMC_TERM))
+    if (!gpsstrcmp(_term, _GPRMC_TERM) || !gpsstrcmp(_term, _GNRMC_TERM))
       _sentence_type = _GPS_SENTENCE_GPRMC;
     else if (!gpsstrcmp(_term, _GPGGA_TERM))
       _sentence_type = _GPS_SENTENCE_GPGGA;
+    else if (!gpsstrcmp(_term, _GNGNS_TERM))
+      _sentence_type = _GPS_SENTENCE_GNGNS;
+    else if (!gpsstrcmp(_term, _GNGSA_TERM) || !gpsstrcmp(_term, _GPGSA_TERM))
+      _sentence_type = _GPS_SENTENCE_GNGSA;
+    else if (!gpsstrcmp(_term, _GPGSV_TERM))
+      _sentence_type = _GPS_SENTENCE_GPGSV;
+    else if (!gpsstrcmp(_term, _GLGSV_TERM))
+      _sentence_type = _GPS_SENTENCE_GLGSV;
     else
       _sentence_type = _GPS_SENTENCE_OTHER;
     return false;
@@ -226,6 +245,7 @@ bool TinyGPS::term_complete()
   {
     case COMBINE(_GPS_SENTENCE_GPRMC, 1): // Time in both sentences
     case COMBINE(_GPS_SENTENCE_GPGGA, 1):
+    case COMBINE(_GPS_SENTENCE_GNGNS, 1):
       _new_time = parse_decimal();
       _new_time_fix = millis();
       break;
@@ -234,22 +254,29 @@ bool TinyGPS::term_complete()
       break;
     case COMBINE(_GPS_SENTENCE_GPRMC, 3): // Latitude
     case COMBINE(_GPS_SENTENCE_GPGGA, 2):
+    case COMBINE(_GPS_SENTENCE_GNGNS, 2):
       _new_latitude = parse_degrees();
       _new_position_fix = millis();
       break;
     case COMBINE(_GPS_SENTENCE_GPRMC, 4): // N/S
     case COMBINE(_GPS_SENTENCE_GPGGA, 3):
+    case COMBINE(_GPS_SENTENCE_GNGNS, 3):
       if (_term[0] == 'S')
         _new_latitude = -_new_latitude;
       break;
     case COMBINE(_GPS_SENTENCE_GPRMC, 5): // Longitude
     case COMBINE(_GPS_SENTENCE_GPGGA, 4):
+    case COMBINE(_GPS_SENTENCE_GNGNS, 4):
       _new_longitude = parse_degrees();
       break;
     case COMBINE(_GPS_SENTENCE_GPRMC, 6): // E/W
     case COMBINE(_GPS_SENTENCE_GPGGA, 5):
+    case COMBINE(_GPS_SENTENCE_GNGNS, 5):
       if (_term[0] == 'W')
         _new_longitude = -_new_longitude;
+      break;
+    case COMBINE(_GPS_SENTENCE_GNGNS, 6):
+      strncpy(_constellations, _term, 5);
       break;
     case COMBINE(_GPS_SENTENCE_GPRMC, 7): // Speed (GPRMC)
       _new_speed = parse_decimal();
@@ -263,7 +290,8 @@ bool TinyGPS::term_complete()
     case COMBINE(_GPS_SENTENCE_GPGGA, 6): // Fix data (GPGGA)
       _gps_data_good = _term[0] > '0';
       break;
-    case COMBINE(_GPS_SENTENCE_GPGGA, 7): // Satellites used (GPGGA)
+    case COMBINE(_GPS_SENTENCE_GPGGA, 7): // Satellites used (GPGGA): GPS only
+    case COMBINE(_GPS_SENTENCE_GNGNS, 7): //  GNGNS counts-in all constellations
       _new_numsats = (unsigned char)atoi(_term);
       break;
     case COMBINE(_GPS_SENTENCE_GPGGA, 8): // HDOP
@@ -271,6 +299,64 @@ bool TinyGPS::term_complete()
       break;
     case COMBINE(_GPS_SENTENCE_GPGGA, 9): // Altitude (GPGGA)
       _new_altitude = parse_decimal();
+      break;
+    case COMBINE(_GPS_SENTENCE_GNGSA, 3): //satellites used in solution: 3 to 15
+      //_sats_used[
+      break;
+    case COMBINE(_GPS_SENTENCE_GPGSV, 2):   //beginning of sequence
+    case COMBINE(_GPS_SENTENCE_GLGSV, 2):   //beginning of sequence
+    {
+      uint8_t msgId = atoi(_term)-1;  //start from 0
+      if(msgId == 0) {
+        //http://geostar-navigation.com/file/geos3/geos_nmea_protocol_v3_0_eng.pdf
+        if(_sentence_type == _GPS_SENTENCE_GPGSV) {
+          //reset GPS & WAAS trackedSatellites
+          for(uint8_t x=0;x<12;x++)
+          {
+            tracked_sat_rec[x] = 0;
+          }
+        } else {
+          //reset GLONASS trackedSatellites: range starts with 23
+          for(uint8_t x=12;x<24;x++)
+          {
+            tracked_sat_rec[x] = 0;
+          }
+        }
+      }
+      _sat_index = msgId*4;   //4 sattelites/line
+      if(_sentence_type == _GPS_SENTENCE_GLGSV)
+      {
+        _sat_index = msgId*4 + 12;   //Glonass offset by 12
+      }
+      break;
+  }
+    case COMBINE(_GPS_SENTENCE_GPGSV, 4):   //satellite #
+    case COMBINE(_GPS_SENTENCE_GPGSV, 8):
+    case COMBINE(_GPS_SENTENCE_GPGSV, 12):
+    case COMBINE(_GPS_SENTENCE_GPGSV, 16):
+    case COMBINE(_GPS_SENTENCE_GLGSV, 4):
+    case COMBINE(_GPS_SENTENCE_GLGSV, 8):
+    case COMBINE(_GPS_SENTENCE_GLGSV, 12):
+    case COMBINE(_GPS_SENTENCE_GLGSV, 16):
+      _tracked_satellites_index = atoi(_term);
+      break;
+    case COMBINE(_GPS_SENTENCE_GPGSV, 7):   //strength
+    case COMBINE(_GPS_SENTENCE_GPGSV, 11):
+    case COMBINE(_GPS_SENTENCE_GPGSV, 15):
+    case COMBINE(_GPS_SENTENCE_GPGSV, 19):
+    case COMBINE(_GPS_SENTENCE_GLGSV, 7):   //strength
+    case COMBINE(_GPS_SENTENCE_GLGSV, 11):
+    case COMBINE(_GPS_SENTENCE_GLGSV, 15):
+    case COMBINE(_GPS_SENTENCE_GLGSV, 19):
+      uint8_t stren = (uint8_t)atoi(_term);
+      if(stren == 0)  //remove the record, 0dB strength
+      {
+        tracked_sat_rec[_sat_index + (_term_number-7)/4] = 0;
+      }
+      else
+      {
+        tracked_sat_rec[_sat_index + (_term_number-7)/4] = _tracked_satellites_index<<8 | stren<<1;
+      }
       break;
   }
 

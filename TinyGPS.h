@@ -79,6 +79,9 @@ public:
   // horizontal dilution of precision in 100ths
   inline unsigned long hdop() { return _hdop; }
 
+  inline char* constellations() { return _constellations; }
+  inline uint32_t* trackedSatellites() { return tracked_sat_rec; }
+
   void f_get_position(float *latitude, float *longitude, unsigned long *fix_age = 0);
   void crack_datetime(int *year, byte *month, byte *day, 
     byte *hour, byte *minute, byte *second, byte *hundredths = 0, unsigned long *fix_age = 0);
@@ -100,7 +103,8 @@ public:
 #endif
 
 private:
-  enum {_GPS_SENTENCE_GPGGA, _GPS_SENTENCE_GPRMC, _GPS_SENTENCE_OTHER};
+  enum {_GPS_SENTENCE_GPGGA, _GPS_SENTENCE_GPRMC, _GPS_SENTENCE_GNGNS, _GPS_SENTENCE_GNGSA,
+      _GPS_SENTENCE_GPGSV, _GPS_SENTENCE_GLGSV,  _GPS_SENTENCE_OTHER};
 
   // properties
   unsigned long _time, _new_time;
@@ -124,6 +128,22 @@ private:
   byte _term_number;
   byte _term_offset;
   bool _gps_data_good;
+  
+  struct TrackedSattelites {
+      uint8_t prn;      //"pseudo-random noise" sequences, or Gold codes. GPS sats are listed here http://en.wikipedia.org/wiki/List_of_GPS_satellites
+      uint8_t strength; //in dB
+  };
+
+  char _constellations[5];
+  uint8_t _sat_used_count;
+
+  //format:
+  //bit 0-7: sat ID
+  //bit 8-14: snr (dB), max 99dB
+  //bit 15: used in solution (when tracking)
+  uint32_t tracked_sat_rec[24]; //TODO: externalize array size
+  int _tracked_satellites_index;
+  uint8_t _sat_index;
 
 #ifndef _GPS_NO_STATS
   // statistics
