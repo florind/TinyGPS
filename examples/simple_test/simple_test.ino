@@ -9,6 +9,7 @@
 
 TinyGPS gps;
 SoftwareSerial ss(4, 3);
+char buf[32];
 
 void setup()
 {
@@ -38,10 +39,10 @@ void loop()
     }
   }
 
+  unsigned long age;
   if (newData)
   {
     float flat, flon;
-    unsigned long age;
     gps.f_get_position(&flat, &flon, &age);
     Serial.print("LAT=");
     Serial.print(flat == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flat, 6);
@@ -51,8 +52,35 @@ void loop()
     Serial.print(gps.satellites() == TinyGPS::GPS_INVALID_SATELLITES ? 0 : gps.satellites());
     Serial.print(" PREC=");
     Serial.print(gps.hdop() == TinyGPS::GPS_INVALID_HDOP ? 0 : gps.hdop());
+    //GPS mode
+    Serial.print(" Constellations=");
+    Serial.print(flat == TinyGPS::GPS_INVALID_F_ANGLE ? 0 : gps.constellations());
+  }
+
+  //satellites in view
+  uint32_t* satz = gps.trackedSatellites();
+  uint8_t sat_count = 0;
+  for(int i=0;i<24;i++)
+  {
+    if(satz[i] != 0)    //exclude zero SNR sats
+    {
+      sat_count++;
+      byte strength = (satz[i]&0xFF)>>1;
+      byte prn = satz[i]>>8;
+      sprintf(buf, "PRN %d: ", prn);
+      Serial.print(buf);
+      Serial.print(strength);
+      Serial.println("dB");
+    }
   }
   
+  //date time
+  int year;
+  uint8_t month, day, hour, minutes, second, hundredths;
+  gps.crack_datetime(&year, &month, &day, &hour, &minutes, &second, &hundredths, &age);
+  sprintf(buf,"GPS time: %d/%02d/%02d %02d:%02d:%02d", year, month, day, hour, minutes, second);
+  Serial.println(buf);
+
   gps.stats(&chars, &sentences, &failed);
   Serial.print(" CHARS=");
   Serial.print(chars);
