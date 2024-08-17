@@ -2,7 +2,7 @@
 
 This update adds support for newer NMEA-capable GPS devices that implement the [v3.x GNSS spec](http://geostar-navi.com/files/docs/geos3/geos_nmea_protocol_v3_0_eng.pdf) as well as devices that support [GLONASS](https://en.wikipedia.org/wiki/GLONASS).
 
-<center><table><tr valign='center'><td><img src='http://blog.newsplore.com/wp-content/uploads/2015/09/gps-notrack.jpg' width='200px'/></td><td><img src="http://blog.newsplore.com/wp-content/uploads/2015/09/gps-track.jpg" width='200px'/></tr><tr align='center'><td>Acquiring position</td><td>Tracking</td></tr></table></center>
+<center><table><tr valign='center'><td><img src='http://blog.metaflow.net/wp-content/uploads/2015/09/gps-notrack.jpg' width='200px'/></td><td><img src="http://blog.metaflow.net/wp-content/uploads/2015/09/gps-track.jpg" width='200px'/></tr><tr align='center'><td>Acquiring position</td><td>Tracking</td></tr></table></center>
 
 #### The following new sentences are now supported:
 
