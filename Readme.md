@@ -73,4 +73,4 @@ For example, a return of ```AA``` when calling ```constellations()``` means that
 
 Now the time and date are also updated even when the device is not tracking since a valid date and time is computed when enough satellites are in view. Use with caution as it may yield false date and time.
 
-Blogged [here](http://blog.newsplore.com/2015/09/03/a-tinygps-upgrade-adding-nmea-v3-0-and-glonass-support).
+Blogged [here](http://blog.metaflow.net/2015/09/03/a-tinygps-upgrade-adding-nmea-v3-0-and-glonass-support).
